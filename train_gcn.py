@@ -75,7 +75,6 @@ def get_Data(device,args):
     event = torch.tensor(event)
 
     # edge_index = torch.tensor(edge_index, dtype=torch.long)
-    ## 求标准lpls矩阵
     # NL=nx.normalized_laplacian_matrix(ppi_graph) 
     data = np.ones(edge_index[1].shape[0])
     adj = sp.coo_matrix((data, (edge_index[0], edge_index[1])), shape=(ppi_network.shape[0], ppi_network.shape[1]), dtype=np.float32)
@@ -89,7 +88,6 @@ def get_Data(device,args):
     y = y.to(device)
     # edge_index = edge_index.to(device)
 
-    ### 去稀疏化
     adj = adj.to_dense()
 
     count = torch.sign(adj).sum()
@@ -99,7 +97,6 @@ def get_Data(device,args):
     time = time.to(device)
     event = event.to(device)
 
-    ## 划分数据集
     gene_dataset = Data.TensorDataset(x,y,time,event)
 
     train_size = int(len(gene_dataset)*0.8)
@@ -121,38 +118,6 @@ def get_Data(device,args):
         batch_size=args.batch_size,     
         # shuffle=True,              
     )
-
-    ####
-    # nums = '0.7765'
-    # pth = 'data_split/'+nums+'__'+'1000'+'.npy'
-    # data = np.load(pth, allow_pickle=True)
-    # train_dataset_indices = data.item()['train_dataset_indices']
-    # test_dataset_indices = data.item()['test_dataset_indices']
-
-    # gene_dataset = Data.TensorDataset(x,y,time,event)
-
-
-    # train_x,train_y,train_time,train_event = gene_dataset[train_dataset_indices]
-    # test_x,test_y,test_time,test_event = gene_dataset[test_dataset_indices]
-
-    # train_dataset = Data.TensorDataset(train_x,train_y,train_time,train_event)
-    # test_dataset = Data.TensorDataset(test_x,test_y,test_time,test_event)
-    # ####
-    # train_loader = Data.DataLoader(
-    #     dataset=train_dataset,      # torch TensorDataset format
-    #     batch_size=args.batch_size,      # mini batch size
-    #     shuffle=True,                        
-    # )
-
-    # test_loader = Data.DataLoader(
-    #     dataset=test_dataset,      # torch TensorDataset format
-    #     batch_size=args.batch_size,     
-    #     # shuffle=True,              
-    # )
-
-    # g = dgl.graph((edge_index[0], edge_index[1]))
-    # g = dgl.add_self_loop(g)
-
 
     node_nums = x_train.shape[0]
     n_intervals = int(y_train.shape[1]/2)
@@ -213,7 +178,6 @@ def train_and_eval(
             
 
             y_pred = model(adj,batch_x)            
-            ##梯度下降
             loss1 = loss_func(y_true, y_pred).mean()  
             loss2 = rank_loss(y_true, y_pred,time,event)
             loss = args.a*loss1 + args.b*loss2
@@ -224,7 +188,6 @@ def train_and_eval(
 
             
 
-            ### ### 计算c-index
             y_pred = y_pred.cpu().detach().numpy()
             y_true = y_true.cpu().detach().numpy()
             time = time.cpu().detach().numpy()
@@ -243,22 +206,18 @@ def train_and_eval(
             LOSS.append((epoch,step,loss.mean().item()))
             epoch_loss.append(loss.mean().item())
 
-            # ##更新信息
             loop.set_description(f'Training... Epoch [{epoch+1}/{num_epoch}]')
             loop.set_postfix(batch_loss = loss.mean().item(),mean_loss = np.mean(np.array(epoch_loss)))
             # # scheduler.step()
 
         scheduler.step()
         
-        ##计算c-index
         c_index_train = cal_c_index(y_preds,times,events,breaks)
         c_td_train = cal_c_td(y_preds,y_trues,times,events)
         
         train_c_index_reload.append(c_index_train)
         train_c_td_reload.append(c_td_train)
-        ###计算完毕
 
-        #### 计算平均损失
         data = []
         for i in range(len(LOSS)):
             data.append(LOSS[i][2])
@@ -287,7 +246,7 @@ def train_and_eval(
 
                 test_loss_array.append(test_loss.mean().item())
 
-                ### 计算c-index
+
                 y_pred = y_pred.cpu().detach().numpy()
                 y_true = y_true.cpu().detach().numpy()
                 time = time.cpu().detach().numpy()
@@ -308,7 +267,7 @@ def train_and_eval(
             
             test_loss_reload.append(np.mean(test_loss_array[-test_size:]))
                 
-            ##计算c-index
+
             c_index_test = cal_c_index(y_preds,times,events,breaks)
             c_td_test = cal_c_td(y_preds,y_trues,times,events)
 
@@ -320,7 +279,7 @@ def train_and_eval(
             TEST_max_C_INDEX = max(c_index_test,TEST_max_C_INDEX)
             TEST_max_C_TD = max(c_td_test,TEST_max_C_TD)
             print('***MAX c_index:', round(TEST_max_C_INDEX,6),'Max c_td:', round(TEST_max_C_TD,6))
-            ### 计算完毕
+
 
             if(c_index_test > 0.73):
                 save_model(c_index_test,model,args)
